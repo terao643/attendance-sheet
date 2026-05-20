@@ -389,7 +389,7 @@
     let ID_TOKEN = "";
     let MY_LINE_ID = "";       // LINEユーザーID
     let IS_VIEW_MODE = false;  // 閲覧モードかどうかのフラグ
-    let DEADLINE_HOUR = 23;    // デフォルトの回答期限（前日23時） GAS設定値で上書きされる
+    let DEADLINE_HOUR = 18;    // デフォルトの回答期限（当日） GAS設定値で上書きされる
     let WEEK_LABEL = "";       // 対象週のラベル（例: 2026/04/13〜）
     let BASE_DATE_STR = "";
     let days = [];             // 日付データの配列
@@ -929,6 +929,10 @@
     // ⚠ 最重要: UI描画の中核
     // ・getInitialDataのレスポンス構造に完全依存
     // ・dates / families構造変更は即表示崩壊
+    // ⚠ 注意:
+    // toggle() / applyComment() 後は基本的に
+    // render() 全体再描画を行わず差分DOM更新する。
+    // render() は初期表示・週切替・再取得時のみ実行される。
     
     function render() {
       // =========================
@@ -1085,7 +1089,7 @@
     // ・記号変更時はGAS側と必ず同期
     function toggle(fIdx, dIdx) {
       if (days[dIdx].isLocked) {
-        alert("回答期限：前日" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
+        alert("回答期限：" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
         return;
       }
 
@@ -1143,6 +1147,9 @@
      * ・rawData / days 構造に依存
      * ・UI_CONFIG.signs の順序変更時は表示順も変化
      */
+    // ⚠ 注意:
+    // thead th の先頭は名前列のため、
+    // 日付ヘッダーは index + 1 で参照している。
     function updateHeaderCounts() {
       const totals = days.map(() => {
         let obj = {};
@@ -1200,7 +1207,7 @@
     // ・indexズレが起きると別人データ書き換えリスクあり
     function openModal(fIdx, dIdx) {
       if (days[dIdx].isLocked) { 
-        alert("回答期限：前日" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
+        alert("回答期限：" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
         return; 
       }
       currentEditFIdx = fIdx; 
@@ -1244,6 +1251,9 @@
     // ⚠ 注意: コメント編集処理
     // ・rawData構造に依存
     // ・indexズレが起きると別人データ書き換えリスクあり
+    // ⚠ innerHTML 更新時:
+    // currentEditFIdx/currentEditDIdx は
+    // 数値indexのみ使用しておりHTML注入対象ではない
     function applyComment() {
       if (currentEditFIdx === -1) return;
       
