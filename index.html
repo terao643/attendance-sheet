@@ -391,7 +391,7 @@
     let IS_VIEW_MODE = false;  // 閲覧モードかどうかのフラグ
     let DEADLINE_HOUR = 18;    // デフォルトの回答期限（当日） GAS設定値で上書きされる
     let WEEK_LABEL = "";       // 対象週のラベル（例: 2026/04/13〜）
-    let BASE_DATE_STR = "";
+    let BASE_DATE_STR = "";    // 週識別キー（月曜基準日）
     let days = [];             // 日付データの配列
     let rawData = [];          // 取得した全団員のデータ
     let hasChanges = false;    // 編集が行われたかどうかのフラグ
@@ -517,7 +517,8 @@
     // ・GAS doGetのaction仕様と完全一致が必要
     // ・URLパラメータ変更は通信エラーの原因
     async function fetchData(retryCount = 0, targetDateStr = null) {
-      document.getElementById("loadingText").innerText = "読込中...";    
+      document.getElementById("loadingText").innerText = "読込中...";
+      document.getElementById("loadingText").style.color = "#333";
 
       const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
       let url = `${SETTINGS.GAS_URL}?uid=${MY_LINE_ID}&action=get&mode=${IS_VIEW_MODE ? 'view' : 'edit'}&appUrl=${appUrl}&v=${Date.now()}`;
@@ -660,6 +661,8 @@
 
       const loader = document.getElementById("loading");
       document.getElementById("loadingText").innerText = "保存中...";
+      document.getElementById("loadingText").style.color = "#333";
+      
       loader.style.display = "flex";
 
       // ログイン中ユーザー自身のデータのみを抽出して送信ペイロードを作成
@@ -683,7 +686,7 @@
         
         return{
           weekLabel: WEEK_LABEL,
-          weekId: BASE_DATE_STR,  // ★追加
+          weekId: BASE_DATE_STR,      // 週識別キー（月曜基準日）
           
           dateLabel: d.label, 
           dateKey: d.dateKey,   // ★dateKey追加
@@ -735,6 +738,8 @@
         }
         // 保存完了後、少し待ってからウィンドウを閉じる
         document.getElementById("loadingText").innerText = "保存完了しました";
+        document.getElementById("loadingText").style.color = "var(--main-green)";
+
         setTimeout(() => {
           liff.closeWindow();
         }, 1200);
@@ -893,6 +898,7 @@
      */
     async function fetchPastData() {
       const btn = document.querySelector(".btn-show-past");
+      if (!btn) return;
       btn.disabled = true;
       
       try {
@@ -1100,8 +1106,10 @@
       const currentIndex = signs.indexOf(current);
       const next = signs[(currentIndex >= 0 ? currentIndex + 1 : 0) % signs.length];
       
-      // 次の記号を配列順に循環取得して更新
+      // statuses未生成時の安全初期化
+      // 初回回答・データ欠損時でも更新可能にする
       if (!rawData[fIdx].statuses) rawData[fIdx].statuses = {};
+      // 次の記号を配列順に循環取得して更新
       rawData[fIdx].statuses[key] = next;
       
       hasChanges = true;
@@ -1260,6 +1268,8 @@
       const key = days[currentEditDIdx].dateKey;                //dateKeyへ変更
       const val = document.getElementById("modalInput").value;
 
+      // commentStatus未生成時の安全初期化
+      // 初回コメント入力時の undefined 防止
       if (!rawData[currentEditFIdx].commentStatus) {
         rawData[currentEditFIdx].commentStatus = {};
       }
