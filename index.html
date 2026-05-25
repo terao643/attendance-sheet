@@ -372,8 +372,8 @@
     // ⚠ GAS_URL / LIFF_ID は本番環境識別子
     // ・変更時はGAS/LINE Developers側設定と必ず同期
     const SETTINGS = {
-      //GAS_URL: "https://script.google.com/macros/s/AKfycbz4M2wVSJmz1WwE5Aevak9JN0MPZTlbNeYiPDRaFATwtrF2vJdRh2zxIgGnJe05iNoe/exec", テスト用
-      GAS_URL: "https://script.google.com/macros/s/AKfycbwx8DtziZGtKx7N3j6cZATGw5xwnS1kUcFBeyRn1yOpkrVbwyMjoO9FIbjVMZ5VGxY/exec",　//リリース
+      //GAS_URL: "https://script.google.com/macros/s/AKfycbz4M2wVSJmz1WwE5Aevak9JN0MPZTlbNeYiPDRaFATwtrF2vJdRh2zxIgGnJe05iNoe/exec", //テスト用
+      GAS_URL: "https://script.google.com/macros/s/AKfycbwx8DtziZGtKx7N3j6cZATGw5xwnS1kUcFBeyRn1yOpkrVbwyMjoO9FIbjVMZ5VGxY/exec", //リリース
       LIFF_ID: "2009266487-GEiMe9Ei"
     };
 
@@ -387,6 +387,48 @@
       labels: { "〇": "参加", "△": "遅参", "×": "欠席", "-": "未回答" }
     };
 
+    // ==============================
+    // ローディング表示文言
+    // ==============================
+    // ⚠ UI表示専用定数
+    // ・loadingText 要素へ表示する文言を統一管理
+    // ・文言変更時はユーザー操作感に影響するため注意
+    // ・通信状態と一致する内容を維持する
+    const LOADING_TEXT = {
+      LOADING: "読込中...",
+      FETCHING: "データ取得中...",
+      SAVING: "保存中...",
+      SAVED: "保存完了しました"
+    };
+
+    // ==============================
+    // UIタイミング設定
+    // ==============================
+    // ⚠ 非同期UI制御用タイミング値
+    // ・FETCH_TIMEOUT: fetchWithTimeout の通信制限時間(ms)
+    // ・RETRY_WAIT: fetchData リトライ前待機時間(ms)
+    // ・CLOSE_DELAY: 保存完了表示後にLIFFを閉じる待機時間(ms)
+    // ・SCROLL_DURATION: slowScrollToBottom のアニメーション時間(ms)
+    const UI_TIMING = {
+      FETCH_TIMEOUT: 15000,
+      RETRY_WAIT: 500,
+      CLOSE_DELAY: 1200,
+      SCROLL_DURATION: 1000
+    };
+
+    // ==============================
+    // スクロール判定設定
+    // ==============================
+    // ⚠ checkScroll() の表示判定に使用
+    // ・DISPLAY_MARGIN:
+    //   scrollHeight と clientHeight の誤差吸収用
+    // ・BOTTOM_THRESHOLD:
+    //   「最下端到達」とみなす余裕px
+    const SCROLL_CONFIG = {
+      DISPLAY_MARGIN: 3,
+      BOTTOM_THRESHOLD: 10
+    };
+    
     let ID_TOKEN = "";
     let MY_LINE_ID = "";       // LINEユーザーID
     let IS_VIEW_MODE = false;  // 閲覧モードかどうかのフラグ
@@ -440,7 +482,7 @@
      * @param {number} timeout - タイムアウトまでのミリ秒数（デフォルト15秒）
      * @returns {Promise<Response>} サーバーからのレスポンス
      */
-    async function fetchWithTimeout(url, options = {}, timeout = 15000) {
+    async function fetchWithTimeout(url, options = {}, timeout = UI_TIMING.FETCH_TIMEOUT) {
       // AbortController により一定時間で通信を強制停止
       // LIFF + モバイル回線環境で fetch が無限待機化するのを防止
       const controller = new AbortController();
@@ -518,7 +560,7 @@
     // ・GAS doGetのaction仕様と完全一致が必要
     // ・URLパラメータ変更は通信エラーの原因
     async function fetchData(retryCount = 0, targetDateStr = null) {
-      document.getElementById("loadingText").innerText = "読込中...";
+      document.getElementById("loadingText").innerText = LOADING_TEXT.LOADING;
       document.getElementById("loadingText").style.color = "#333";
 
       const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
@@ -600,7 +642,7 @@
       } catch (e) {
         if (retryCount < 2) {
           // エラー時は500ms待ってから再試行
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, UI_TIMING.RETRY_WAIT));
           return await fetchData(retryCount + 1, targetDateStr);
         }
         document.getElementById("loading").style.display = "none";
@@ -661,7 +703,7 @@
       isSaving = true;
 
       const loader = document.getElementById("loading");
-      document.getElementById("loadingText").innerText = "保存中...";
+      document.getElementById("loadingText").innerText = LOADING_TEXT.SAVING;
       document.getElementById("loadingText").style.color = "#333";
       
       loader.style.display = "flex";
@@ -681,7 +723,11 @@
       // ⚠ key名変更禁止
       // ・dateKey ベースで保存
       // ・weekId は週単位識別子
-      // ・status/comment は1日単位      
+      // ・status/comment は1日単位
+      // ・GAS側 INDEX / DB構造と完全同期前提
+      // ・weekId: 週シート識別
+      // ・dateKey: 日単位データ識別
+      // ・両方削除すると履歴整合性が崩れるため注意
       const payload = days.map((d) => {
         const key = d.dateKey;         // dateKeyへ変更
         
@@ -738,12 +784,12 @@
           throw new Error(data.message || "保存失敗");
         }
         // 保存完了後、少し待ってからウィンドウを閉じる
-        document.getElementById("loadingText").innerText = "保存完了しました";
+        document.getElementById("loadingText").innerText = LOADING_TEXT.SAVED;
         document.getElementById("loadingText").style.color = "var(--main-green)";
 
         setTimeout(() => {
           liff.closeWindow();
-        }, 1200);
+        }, UI_TIMING.CLOSE_DELAY);
         
       } catch (e) {
 
@@ -913,7 +959,7 @@
       
         document.getElementById("main-view").style.display = "none";
         document.getElementById("loading").style.display = "flex";
-        document.getElementById("loadingText").innerText = "データ取得中...";
+        document.getElementById("loadingText").innerText = LOADING_TEXT.FETCHING;
 
         await fetchData(0, targetDateStr);
       } finally {
@@ -1130,6 +1176,11 @@
       );
 
       if (cell) {
+        // status-* class を付け替えて色変更
+        // class名は status-〇 / status-△ のように
+        // 記号を直接使用しているため、
+        // UI_CONFIG.signs変更時はCSS同期必須
+        
         // 既存 status-* class を除去
         UI_CONFIG.signs.forEach(sign => {
           cell.classList.remove(`status-${sign}`);
@@ -1287,6 +1338,9 @@
       if (td) {
         const icon = val ? "💬" : "＋";
 
+        // コメント有無のみ差分更新
+        // 全体render()を避けることで
+        // スクロール位置ジャンプを防止
         td.innerHTML = `
         <span class="com-icon"
           onclick="openModal(${currentEditFIdx}, ${currentEditDIdx})">
@@ -1324,9 +1378,9 @@
       const clientH = Math.round(area.clientHeight);
       const scrollT = Math.round(area.scrollTop);
       
-      const canScroll = scrollH > (clientH + 3);
+      const canScroll = scrollH > (clientH + SCROLL_CONFIG.DISPLAY_MARGIN);
       // 下端に到達しているか判定（10pxの余裕を持たせる）
-      const isBottom = (scrollH - scrollT) <= (clientH + 10);
+      const isBottom = (scrollH - scrollT) <= (clientH + SCROLL_CONFIG.BOTTOM_THRESHOLD);
       
       if (canScroll && !isBottom) {
         indicator.style.display = "block";
@@ -1399,7 +1453,7 @@
       const area = document.getElementById("content-area");
       
       // 1000ミリ秒（1秒）かけて下までスクロールします（数字を減らすと速くなります）
-      slowScrollToBottom(area, 1000); 
+      slowScrollToBottom(area, UI_TIMING.SCROLL_DURATION); 
     };
 
     /**
