@@ -387,6 +387,8 @@
       labels: { "〇": "参加", "△": "遅参", "×": "欠席", "-": "未回答" }
     };
 
+    const WEEK_STRS = ["日", "月", "火", "水", "木", "金", "土"];
+    
     // ==============================
     // ローディング表示文言
     // ==============================
@@ -444,7 +446,11 @@
     let currentEditFIdx = -1;  // 行（団員）のインデックス
     let currentEditDIdx = -1;  // 列（日付）のインデックス
 
-
+    const ALERT_MESSAGES = {
+      DEADLINE_LOCK:
+        "回答期限：{HOUR}時を過ぎているため変更できません"
+    };
+    
     /* ===================================================
        Level 3: コア処理（初期化・通信）
     =================================================== */
@@ -452,7 +458,10 @@
     /* ===================================================
        1. 汎用Utility
     =================================================== */
-
+    // ⚠ XSS対策用
+    // ・table描画時のHTML注入防止
+    // ・name/comment/dateLabel表示時に使用
+    // ・innerHTMLへ未加工文字列を直接入れない
     function escapeHtml(str) {
       if (str === null || str === undefined){
         return '';
@@ -465,6 +474,10 @@
         .replace(/'/g, '&#39;');
     }
 
+    // ⚠ onclick引数用エスケープ
+    // ・viewModal(...) の文字列埋め込み用
+    // ・シングルクォート崩れ防止
+    // ・改行混入によるscript崩れ防止
     function escapeJsString(str) {
       return String(str || "")
         .replace(/\\/g, "\\\\")
@@ -614,9 +627,8 @@
             document.getElementById("footer").style.display = "block";
 
             // 本日の日付を生成してタイトル横に表示
-            const now = new Date();
-            const weekStrs = ["日", "月", "火", "水", "木", "金", "土"];
-            const todayStr = `${now.getMonth() + 1}/${now.getDate()}(${weekStrs[now.getDay()]})`;
+            const now = new Date();     
+            const todayStr = `${now.getMonth() + 1}/${now.getDate()}(${WEEK_STRS[now.getDay()]})`;
             document.getElementById("weekTitle").innerHTML = `${data.data.weekLabel} <span style="font-size: 14px; color: #555; margin-left: 8px;">本日：${todayStr}</span>`;
           }
 
@@ -943,6 +955,8 @@
     /**
      * ドロップダウンで指定した日付のデータをサーバーから取得します。
      */
+    // ⚠ 注意:
+    // ボタン連打による多重fetch防止のため処理中はdisabled=true化する
     async function fetchPastData() {
       const btn = document.querySelector(".btn-show-past");
       if (!btn) return;
@@ -1141,8 +1155,12 @@
     // ・UI_CONFIG.signs配列順に依存
     // ・記号変更時はGAS側と必ず同期
     function toggle(fIdx, dIdx) {
+      // index不整合時ガード
+      if (!days[dIdx]) {
+        return;
+      }      
       if (days[dIdx].isLocked) {
-        alert("回答期限：" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
+        ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}",DEADLINE_HOUR));
         return;
       }
 
@@ -1208,8 +1226,9 @@
      * ・UI_CONFIG.signs の順序変更時は表示順も変化
      */
     // ⚠ 注意:
-    // thead th の先頭は名前列のため、
-    // 日付ヘッダーは index + 1 で参照している。
+    // thead th の先頭は名前列のため、日付ヘッダーは index + 1 で参照している。
+    // ⚠ render() を呼ばず
+    // ヘッダー人数表示のみ更新することで描画負荷とスクロールジャンプを防止
     function updateHeaderCounts() {
       const totals = days.map(() => {
         let obj = {};
@@ -1266,8 +1285,12 @@
     // ・rawData構造に依存
     // ・indexズレが起きると別人データ書き換えリスクあり
     function openModal(fIdx, dIdx) {
+      // index不整合時ガード
+      if (!days[dIdx] || !rawData[fIdx]) {
+        return;
+      }
       if (days[dIdx].isLocked) { 
-        alert("回答期限：" + DEADLINE_HOUR + "時を過ぎているため変更できません"); 
+        ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}",DEADLINE_HOUR));
         return; 
       }
       currentEditFIdx = fIdx; 
@@ -1315,7 +1338,13 @@
     // currentEditFIdx/currentEditDIdx は
     // 数値indexのみ使用しておりHTML注入対象ではない
     function applyComment() {
-      if (currentEditFIdx === -1) return;
+      if (
+        !days[currentEditDIdx] ||
+        !rawData[currentEditFIdx]
+      ) {
+        closeModal();
+        return;
+      }
       
       const key = days[currentEditDIdx].dateKey;                //dateKeyへ変更
       const val = document.getElementById("modalInput").value;
