@@ -455,18 +455,16 @@
     let currentEditFIdx = -1;  // 行（団員）のインデックス
     let currentEditDIdx = -1;  // 列（日付）のインデックス
 
-    const ALERT_MESSAGES = {
-      DEADLINE_LOCK:
-        "回答期限：{HOUR}時を過ぎているため変更できません"
-    };
-
-    let hasChanges = false;    // 編集が行われたかどうかのフラグ
-    let isSaving = false;      // 保存処理中かどうかのフラグ
     // thead th キャッシュ
     // ⚠ updateHeaderCounts() 高速化用
     // ・toggle() 毎の querySelectorAll 実行を削減
     // ・render() 後に再取得する
     let tableHeaders = [];
+
+    const ALERT_MESSAGES = {
+      DEADLINE_LOCK:
+        "回答期限：{HOUR}時を過ぎているため変更できません"
+    };
     
     /* ===================================================
        Level 3: コア処理（初期化・通信）
@@ -1277,7 +1275,7 @@
 
       });
 
-      const headers = document.querySelectorAll("thead th");
+      // const headers = document.querySelectorAll("thead th");
       days.forEach((d, i) => {
         const th = tableHeaders[i + 1];
     
