@@ -378,6 +378,7 @@
     };
 
     const APP_TITLE = "父出欠確認アプリ";
+    const WEEK_STRS = ["日", "月", "火", "水", "木", "金", "土"];
     
     // UI表示記号定義
     // ⚠ 配列順が toggle() の循環順に直結
@@ -387,7 +388,10 @@
       labels: { "〇": "参加", "△": "遅参", "×": "欠席", "-": "未回答" }
     };
 
-    const WEEK_STRS = ["日", "月", "火", "水", "木", "金", "土"];
+    const COMMENT_UI = {
+      HAS_COMMENT: "💬",
+      EMPTY_COMMENT: "＋"
+    };
     
     // ==============================
     // ローディング表示文言
@@ -455,6 +459,14 @@
       DEADLINE_LOCK:
         "回答期限：{HOUR}時を過ぎているため変更できません"
     };
+
+    let hasChanges = false;    // 編集が行われたかどうかのフラグ
+    let isSaving = false;      // 保存処理中かどうかのフラグ
+    // thead th キャッシュ
+    // ⚠ updateHeaderCounts() 高速化用
+    // ・toggle() 毎の querySelectorAll 実行を削減
+    // ・render() 後に再取得する
+    let tableHeaders = [];
     
     /* ===================================================
        Level 3: コア処理（初期化・通信）
@@ -757,7 +769,8 @@
           dateKey: d.dateKey,   // ★dateKey追加
           familyId: myData.id,
           
-          // ★dateKey追加
+          // statuses は Object 前提
+          // 配列・文字列等の異常データ時でも hasOwnProperty 判定で安全取得する
           status: Object.prototype.hasOwnProperty.call(myData.statuses || {}, key)
             ? myData.statuses[key]
             : "-",
@@ -1107,7 +1120,7 @@
 
             if (isMe && !IS_VIEW_MODE) {
               // 編集モード時の本人セル：クリックでモーダルを開く
-              const icon = c ? '💬' : '＋';
+              const icon = c ? COMMENT_UI.HAS_COMMENT : COMMENT_UI.EMPTY_COMMENT;
 //              html += `<td class="${lockClass}"><span class="com-icon" onclick="openModal(${fIdx}, ${dIdx})">${icon}</span></td>`;
               html += `
                 <td
@@ -1135,6 +1148,13 @@
       });
       // DOM反映
       document.getElementById("mainTable").innerHTML = html + "</tbody>";
+
+      // =========================
+      // ヘッダーDOMキャッシュ更新
+      // =========================
+      // ⚠ render() 後はDOM再生成されるため
+      // 毎回キャッシュを更新する
+      tableHeaders = document.querySelectorAll("thead th");
       
       // =========================
       // スクロール位置復元
@@ -1162,7 +1182,7 @@
     // ・記号変更時はGAS側と必ず同期
     function toggle(fIdx, dIdx) {
       // index不整合時ガード
-      if (!days[dIdx]) {
+      if (!days[dIdx] || !rawData[fIdx]) {
         return;
       }      
       if (days[dIdx].isLocked) {
@@ -1259,7 +1279,7 @@
 
       const headers = document.querySelectorAll("thead th");
       days.forEach((d, i) => {
-        const th = headers[i + 1];
+        const th = tableHeaders[i + 1];
     
         if (!th) return;
         const countBox = th.querySelector(".count-box");
@@ -1327,6 +1347,10 @@
      * @param {string} dateLabel - 日付のラベル
      * @param {string} text - 表示するコメント内容
      */
+    // ⚠ 閲覧専用モーダル
+    // ・編集不可
+    // ・閲覧モード専用
+    // ・text は escapeJsString 済み文字列が渡される前提
     function viewModal(name, dateLabel, text) {
       document.getElementById("modalTitle").innerText = `${name} ${dateLabel} のコメント`;
       document.getElementById("modalDesc").style.display = "none";
@@ -1362,7 +1386,9 @@
       if (!rawData[currentEditFIdx].commentStatus) {
         rawData[currentEditFIdx].commentStatus = {};
       }
-
+      
+      // commentStatus は Object 前提
+      // 初回入力時・欠損時は上で {} 初期化済み
       rawData[currentEditFIdx].commentStatus[key] = val; 
       
       hasChanges = true;
@@ -1409,7 +1435,8 @@
       const area = document.getElementById("content-area");
       const indicator = document.getElementById("scrollIndicator");
       if (!area || !indicator) return;
-
+      
+      // iOS Safari は小数scroll値を返す場合があるため Math.roundで誤差吸収する
       // 小数誤差でインジケーターが点滅するのを防ぐため丸める
       const scrollH = Math.round(area.scrollHeight);
       const clientH = Math.round(area.clientHeight);
