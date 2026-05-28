@@ -415,9 +415,14 @@
       FETCH_TIMEOUT: 15000,
       RETRY_WAIT: 500,
       CLOSE_DELAY: 1200,
-      SCROLL_DURATION: 1000
+      SCROLL_DURATION: 1000,
+      MODAL_FOCUS_DELAY: 100
     };
 
+    const NETWORK_CONFIG = {
+      FETCH_RETRY_MAX: 2
+    };
+    
     // ==============================
     // スクロール判定設定
     // ==============================
@@ -652,7 +657,7 @@
         }
 
       } catch (e) {
-        if (retryCount < 2) {
+        if (retryCount < NETWORK_CONFIG.FETCH_RETRY_MAX) {
           // エラー時は500ms待ってから再試行
           await new Promise(resolve => setTimeout(resolve, UI_TIMING.RETRY_WAIT));
           return await fetchData(retryCount + 1, targetDateStr);
@@ -734,6 +739,7 @@
       // GAS processUpdateAll 用 payload生成
       // ⚠ key名変更禁止
       // ・dateKey ベースで保存
+      // ・label文字列ではなく dateKey を主キー化することで表示文言変更（日付表記変更）時もDB整合性を維持する      
       // ・weekId は週単位識別子
       // ・status/comment は1日単位
       // ・GAS側 INDEX / DB構造と完全同期前提
@@ -1160,7 +1166,7 @@
         return;
       }      
       if (days[dIdx].isLocked) {
-        ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}",DEADLINE_HOUR)
+        alert(ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}", DEADLINE_HOUR));
         return;
       }
 
@@ -1199,7 +1205,9 @@
         // 記号を直接使用しているため、
         // UI_CONFIG.signs変更時はCSS同期必須
         
-        // 既存 status-* class を除去
+        // CSS class は `status-〇` のように記号を直接含む。
+        // HTML/CSS上は有効なclass名として扱われる前提。
+        // signs定義変更時はCSS側class名も必ず同期すること。
         UI_CONFIG.signs.forEach(sign => {
           cell.classList.remove(`status-${sign}`);
         });
@@ -1262,7 +1270,7 @@
       UI_CONFIG.signs.forEach(s => {
         html += `
           <div class="count-row">
-            <span>${s}${UI_CONFIG.labels[s]}</span>
+            <span>${escapeHtml(s)}${escapeHtml(UI_CONFIG.labels[s])}</span>
             <span>${totals[i][s]}</span>
           </div>
         `;
@@ -1290,7 +1298,7 @@
         return;
       }
       if (days[dIdx].isLocked) { 
-        ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}",DEADLINE_HOUR)
+        alert(ALERT_MESSAGES.DEADLINE_LOCK.replace("{HOUR}", DEADLINE_HOUR));
         return; 
       }
       currentEditFIdx = fIdx; 
@@ -1310,7 +1318,7 @@
       document.getElementById("commentModal").style.display = "flex";
       
       // アニメーション完了後にフォーカスを当てる
-      setTimeout(() => document.getElementById("modalInput").focus(), 100);
+      setTimeout(() => document.getElementById("modalInput").focus(), UI_TIMING.MODAL_FOCUS_DELAY);
     }
 
     /**
