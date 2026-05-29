@@ -667,6 +667,7 @@
         }
 
       } catch (e) {
+        // モバイル回線瞬断対策 一時的通信失敗時のみ自動リトライ
         if (retryCount < NETWORK_CONFIG.FETCH_RETRY_MAX) {
           // エラー時は500ms待ってから再試行
           await new Promise(resolve => setTimeout(resolve, UI_TIMING.RETRY_WAIT));
@@ -1039,6 +1040,7 @@
       }
 
       // 日付ごとの集計配列を初期化
+      // 日別集計保持 totals[日index]["〇"] の形式で保持する
       const totals = days.map(() => {
         let obj = {};
         UI_CONFIG.signs.forEach(s => obj[s] = 0);
@@ -1084,9 +1086,10 @@
           const canEdit = !IS_VIEW_MODE && isMe;
           const clickAttr = canEdit ? `onclick="toggle(${fIdx},${dIdx})"` : "";
           const lockClass = isLocked ? "locked" : "";
+          // CSS class は status-〇 のように記号を直接使用している。
+          // signs に存在しない値は class崩れ防止のため "-" にフォールバックする。
           const safeStatusClass = UI_CONFIG.signs.includes(s) ? s : '-';  // status class安全化
           
-//          html += `<td class="status-cell status-${safeStatusClass} ${lockClass}" ${clickAttr}>${escapeHtml(s)}</td>`;
           html += `
             <td
               class="status-cell status-${safeStatusClass} ${lockClass}"
@@ -1119,7 +1122,6 @@
             if (isMe && !IS_VIEW_MODE) {
               // 編集モード時の本人セル：クリックでモーダルを開く
               const icon = c ? COMMENT_UI.HAS_COMMENT : COMMENT_UI.EMPTY_COMMENT;
-//              html += `<td class="${lockClass}"><span class="com-icon" onclick="openModal(${fIdx}, ${dIdx})">${icon}</span></td>`;
               html += `
                 <td
                   class="${lockClass}"
@@ -1152,6 +1154,8 @@
       // =========================
       // ⚠ render() 後はDOM再生成されるため
       // 毎回キャッシュを更新する
+      // render() 実行時は mainTable.innerHTML を全面更新しているため、旧thead参照は破棄される。
+      // そのため毎回最新DOMを再取得してキャッシュ更新する。
       tableHeaders = document.querySelectorAll("thead th");
       
       // =========================
@@ -1164,7 +1168,6 @@
       }
       
       // 描画後、少し待ってからスクロールインジケーターの表示判定を実行
-//      setTimeout(checkScroll, 300);
       requestAnimationFrame(() => {
         requestAnimationFrame(checkScroll);
       });
@@ -1197,7 +1200,13 @@
       
       // statuses未生成時の安全初期化
       // 初回回答・データ欠損時でも更新可能にする
-      if (!rawData[fIdx].statuses) rawData[fIdx].statuses = {};
+      if (
+        !rawData[fIdx].statuses ||
+        typeof rawData[fIdx].statuses !== "object" ||
+        Array.isArray(rawData[fIdx].statuses)
+      ) {
+        rawData[fIdx].statuses = {};
+      }
       // 次の記号を配列順に循環取得して更新
       rawData[fIdx].statuses[key] = next;
       
@@ -1468,7 +1477,7 @@
       // 【重要】scrollHeightではなく、tableのoffsetHeight（純粋な表の高さ）を使います。
       // これにより、余白（margin-bottom等）に惑わされず「表の最後の行」でピタッと止まります。
       const tableHeight = table.offsetHeight;
-      const target = tableHeight - element.clientHeight;
+      const target = Math.max(0, tableHeight - element.clientHeight);
       const distance = target - start;
 
       // すでに下端にいる場合は何もしない
