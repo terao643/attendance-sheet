@@ -62,6 +62,14 @@
       width: 100%; 
     }
 
+    /* todayStr 表示用ラベル
+       inline style 排除による保守性向上 */
+    .today-label {
+      font-size: 14px;
+      color: #555;
+      margin-left: 8px;
+    }
+    
     /* ===================================================
        2. 過去データ閲覧モード用 UI
     =================================================== */
@@ -388,9 +396,22 @@
       labels: { "〇": "参加", "△": "遅参", "×": "欠席", "-": "未回答" }
     };
 
+    const STATUS_CLASS_MAP = {
+      "〇": true,
+      "△": true,
+      "×": true,
+      "-": true
+    };
+    
     const COMMENT_UI = {
       HAS_COMMENT: "💬",
       EMPTY_COMMENT: "＋"
+    };
+    
+    const DISPLAY_STYLE = {
+      NONE: "none",
+      BLOCK: "block",
+      FLEX: "flex"
     };
     
     // ==============================
@@ -465,6 +486,7 @@
       DEADLINE_LOCK:
         "回答期限：{HOUR}時を過ぎているため変更できません"
     };
+
     
     /* ===================================================
        Level 3: コア処理（初期化・通信）
@@ -571,7 +593,7 @@
         await fetchData(); 
         
       } catch (e) {
-        document.getElementById("loading").style.display = "none";
+        document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
         console.error(e);
         alert("初期化または通信エラーが発生しました\n\n詳細: " + e.message);
       }
@@ -613,8 +635,8 @@
         if (data.status === "success") {
           // スケジュールがない場合の処理
           if (data.data.noSchedule) {
-            document.getElementById("loading").style.display = "none";
-            document.getElementById("main-view").style.display = "flex";
+            document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
+            document.getElementById("main-view").style.display = DISPLAY_STYLE.FLEX;
             document.getElementById("weekTitle").innerText = "(未設定)";
             document.getElementById("content-area").innerHTML = '<div class="no-schedule-msg">現在、有効なスケジュールはありません</div>';
             return;
@@ -628,32 +650,33 @@
           if (data.data.deadlineHour !== undefined) DEADLINE_HOUR = data.data.deadlineHour;
 
           // メインUIの表示切り替え
-          document.getElementById("main-view").style.display = "flex";
+          document.getElementById("main-view").style.display = DISPLAY_STYLE.FLEX;
           
           if (IS_VIEW_MODE) {
-            document.getElementById("weekTitle").style.display = "none";
-            document.getElementById("past-view-controls").style.display = "flex";
+            document.getElementById("weekTitle").style.display = DISPLAY_STYLE.NONE;
+            document.getElementById("past-view-controls").style.display = DISPLAY_STYLE.FLEX;
             // 閲覧モード時のドロップダウン初期化
             if (document.getElementById("sel-year").options.length === 0) initDateDropdowns();
             if (data.data.baseDateStr) setDropdownsToDate(data.data.baseDateStr);
           } else {
-            document.getElementById("weekTitle").style.display = "block";
-            document.getElementById("past-view-controls").style.display = "none";
-            document.getElementById("footer").style.display = "block";
+            document.getElementById("weekTitle").style.display = DISPLAY_STYLE.BLOCK;
+            document.getElementById("past-view-controls").style.display = DISPLAY_STYLE.NONE;
+            document.getElementById("footer").style.display = DISPLAY_STYLE.BLOCK;
 
             // 本日の日付を生成してタイトル横に表示
             const now = new Date();     
             const todayStr = `${now.getMonth() + 1}/${now.getDate()}(${WEEK_STRS[now.getDay()]})`;
-            document.getElementById("weekTitle").innerHTML = `${data.data.weekLabel} <span style="font-size: 14px; color: #555; margin-left: 8px;">本日：${todayStr}</span>`;
+//            document.getElementById("weekTitle").innerHTML = `${data.data.weekLabel} <span style="font-size: 14px; color: #555; margin-left: 8px;">本日：${todayStr}</span>`;
+            document.getElementById("weekTitle").innerHTML = `${data.data.weekLabel} <span class="today-label">本日：${todayStr}</span>`;
           }
 
-          document.getElementById("loading").style.display = "none";
+          document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
           render(); // テーブルの描画を実行
 
         } else if (data.status === "unregistered") {
           // 初回登録画面の表示処理
-          document.getElementById("loading").style.display = "none";
-          document.getElementById("registration-view").style.display = "block";
+          document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
+          document.getElementById("registration-view").style.display = DISPLAY_STYLE.BLOCK;
           document.getElementById("regTitle").innerText = data.data.title || APP_TITLE;
           
           const select = document.getElementById("name-list");
@@ -668,12 +691,16 @@
 
       } catch (e) {
         // モバイル回線瞬断対策 一時的通信失敗時のみ自動リトライ
+        // retryCount:
+        // 0 = 初回通信
+        // 1〜 = リトライ回数
+        // NETWORK_CONFIG.FETCH_RETRY_MAX 到達後はユーザーへ通信エラー表示を行う
         if (retryCount < NETWORK_CONFIG.FETCH_RETRY_MAX) {
           // エラー時は500ms待ってから再試行
           await new Promise(resolve => setTimeout(resolve, UI_TIMING.RETRY_WAIT));
           return await fetchData(retryCount + 1, targetDateStr);
         }
-        document.getElementById("loading").style.display = "none";
+        document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
         console.error(e);
         alert("通信エラー、またはタイムアウトが発生しました\n電波の良い所で再読み込みしてください");
       }
@@ -684,7 +711,7 @@
      */
     async function link() {
       const sid = document.getElementById("name-list").value;
-      document.getElementById("loading").style.display = "flex";
+      document.getElementById("loading").style.display = DISPLAY_STYLE.FLEX;
       try {
         const formData = new URLSearchParams();
       
@@ -711,7 +738,7 @@
       
       } catch (e) {
         alert("登録エラーが発生しました\n\n" + e.message);
-        document.getElementById("loading").style.display = "none";
+        document.getElementById("loading").style.display = DISPLAY_STYLE.NONE;
       }
     }
 
@@ -734,7 +761,7 @@
       document.getElementById("loadingText").innerText = LOADING_TEXT.SAVING;
       document.getElementById("loadingText").style.color = "#333";
       
-      loader.style.display = "flex";
+      loader.style.display = DISPLAY_STYLE.FLEX;
 
       // ログイン中ユーザー自身のデータのみを抽出して送信ペイロードを作成
       const myData = rawData.find(f => f.lineIds && f.lineIds.includes(MY_LINE_ID));
@@ -742,7 +769,7 @@
       // ガード追加（ロジック非変更・安全対策）
       if (!myData) {
         alert("ユーザー情報の取得に失敗しました。再度お試しください。");
-        loader.style.display = "none";
+        loader.style.display = DISPLAY_STYLE.NONE;
         isSaving = false;
         return;
       }
@@ -829,7 +856,7 @@
           "通信環境を確認して再度お試しください"
         );
 
-        loader.style.display = "none";
+        loader.style.display = DISPLAY_STYLE.NONE;
         isSaving = false;
       }
     }
@@ -989,8 +1016,8 @@
         const d = String(document.getElementById("sel-monday").value).padStart(2, '0');
         const targetDateStr = `${y}-${m}-${d}`;
       
-        document.getElementById("main-view").style.display = "none";
-        document.getElementById("loading").style.display = "flex";
+        document.getElementById("main-view").style.display = DISPLAY_STYLE.NONE;
+        document.getElementById("loading").style.display = DISPLAY_STYLE.FLEX;
         document.getElementById("loadingText").innerText = LOADING_TEXT.FETCHING;
 
         await fetchData(0, targetDateStr);
@@ -1041,6 +1068,7 @@
 
       // 日付ごとの集計配列を初期化
       // 日別集計保持 totals[日index]["〇"] の形式で保持する
+      // ヘッダー人数表示更新専用
       const totals = days.map(() => {
         let obj = {};
         UI_CONFIG.signs.forEach(s => obj[s] = 0);
@@ -1086,9 +1114,10 @@
           const canEdit = !IS_VIEW_MODE && isMe;
           const clickAttr = canEdit ? `onclick="toggle(${fIdx},${dIdx})"` : "";
           const lockClass = isLocked ? "locked" : "";
+          
           // CSS class は status-〇 のように記号を直接使用している。
           // signs に存在しない値は class崩れ防止のため "-" にフォールバックする。
-          const safeStatusClass = UI_CONFIG.signs.includes(s) ? s : '-';  // status class安全化
+          const safeStatusClass = STATUS_CLASS_MAP[s] ? s : '-';            // status class安全化
           
           html += `
             <td
@@ -1139,6 +1168,8 @@
               const safeLabelJs = escapeJsString(d.label);    //dateKeyへ変更
               const safeCommentJs = escapeJsString(c);
               
+              // onclick埋め込み用にJS文字列エスケープ済み
+              // escapeHtmlではなく escapeJsString を使用する
               const displayTxt = c  ? `<span class="com-text" onclick="viewModal('${safeNameJs}', '${safeLabelJs}', '${safeCommentJs}')">💬</span>`  : '-';              
               html += `<td class="${lockClass}"><span class="com-icon">${displayTxt}</span></td>`;
             }
@@ -1235,9 +1266,16 @@
         // CSS class は `status-〇` のように記号を直接含む。
         // HTML/CSS上は有効なclass名として扱われる前提。
         // signs定義変更時はCSS側class名も必ず同期すること。
-        UI_CONFIG.signs.forEach(sign => {
-          cell.classList.remove(`status-${sign}`);
-        });
+//        UI_CONFIG.signs.forEach(sign => {
+//          cell.classList.remove(`status-${sign}`);
+//        });
+
+        cell.classList.remove(
+          "status-〇",
+          "status-△",
+          "status-×",
+          "status--"
+        );
         
         // 新しい状態classを付与して表示更新
         cell.classList.add(`status-${next}`);
@@ -1287,23 +1325,21 @@
       // const headers = document.querySelectorAll("thead th");
       days.forEach((d, i) => {
         const th = tableHeaders[i + 1];
-    
         if (!th) return;
-        const countBox = th.querySelector(".count-box");
         
+        const countBox = th.querySelector(".count-box");
         if (!countBox) return;
+        
         let html = "";
 
-      UI_CONFIG.signs.forEach(s => {
-        html += `
-          <div class="count-row">
-            <span>${escapeHtml(s)}${escapeHtml(UI_CONFIG.labels[s])}</span>
-            <span>${totals[i][s]}</span>
-          </div>
-        `;
-      });
+        UI_CONFIG.signs.forEach(s => {
+          html += '<div class="count-row">' +
+            '<span>' + escapeHtml(s) + escapeHtml(UI_CONFIG.labels[s]) + '</span>' +
+            '<span>' + totals[i][s] + '</span>' +
+            '</div>';
+        });
 
-      countBox.innerHTML = html;
+        countBox.innerHTML = html;
       });
     }  
 
@@ -1332,20 +1368,27 @@
       currentEditDIdx = dIdx;
 
       const key = days[dIdx].dateKey;  // dateKeyへ変更
+
+      // DOM検索コスト削減 モーダル表示時に毎回 getElementById を繰り返さない
+      const modalTitle = document.getElementById("modalTitle");
+      const modalDesc = document.getElementById("modalDesc");
+      const modalInput = document.getElementById("modalInput");
+      const modalApplyBtn = document.getElementById("modalApplyBtn");
+      const commentModal = document.getElementById("commentModal");
       
-      document.getElementById("modalTitle").innerText = days[dIdx].label + " のコメント";
-      document.getElementById("modalDesc").innerText = "コメントを入力 (例: 17:30から参加)";
-      document.getElementById("modalDesc").style.display = "block";
+      modalTitle.innerText = days[dIdx].label + " のコメント";
+      modalDesc.innerText = "コメントを入力 (例: 17:30から参加)";
+      modalDesc.style.display = DISPLAY_STYLE.BLOCK;
       
       if (!rawData[fIdx].commentStatus) {  rawData[fIdx].commentStatus = {};}
-      document.getElementById("modalInput").value = rawData[fIdx].commentStatus?.[key] || "";  // dateKeyへ変更
+      modalInput.value = rawData[fIdx].commentStatus?.[key] || "";  // dateKeyへ変更
       
-      document.getElementById("modalInput").readOnly = false;
-      document.getElementById("modalApplyBtn").style.display = "block";
-      document.getElementById("commentModal").style.display = "flex";
+      modalInput.readOnly = false;
+      modalApplyBtn.style.display = DISPLAY_STYLE.BLOCK;
+      commentModal.style.display = DISPLAY_STYLE.FLEX;
       
       // アニメーション完了後にフォーカスを当てる
-      setTimeout(() => document.getElementById("modalInput").focus(), UI_TIMING.MODAL_FOCUS_DELAY);
+      setTimeout(() => modalInput.focus(), UI_TIMING.MODAL_FOCUS_DELAY);
     }
 
     /**
@@ -1358,13 +1401,21 @@
     // ・編集不可
     // ・閲覧モード専用
     // ・text は escapeJsString 済み文字列が渡される前提
+    
     function viewModal(name, dateLabel, text) {
-      document.getElementById("modalTitle").innerText = `${name} ${dateLabel} のコメント`;
-      document.getElementById("modalDesc").style.display = "none";
-      document.getElementById("modalInput").value = text;
-      document.getElementById("modalInput").readOnly = true;
-      document.getElementById("modalApplyBtn").style.display = "none";
-      document.getElementById("commentModal").style.display = "flex";
+      // DOM検索コスト削減 モーダル表示時に毎回 getElementById を繰り返さない
+      const modalTitle = document.getElementById("modalTitle");
+      const modalDesc = document.getElementById("modalDesc");
+      const modalInput = document.getElementById("modalInput");
+      const modalApplyBtn = document.getElementById("modalApplyBtn");
+      const commentModal = document.getElementById("commentModal");
+      
+      modalTitle.innerText = `${name} ${dateLabel} のコメント`;
+      modalDesc.style.display = DISPLAY_STYLE.NONE;
+      modalInput.value = text;
+      modalInput.readOnly = true;
+      modalApplyBtn.style.display = DISPLAY_STYLE.NONE;
+      commentModal.style.display = DISPLAY_STYLE.FLEX;
     }
 
     /**
@@ -1384,8 +1435,11 @@
         closeModal();
         return;
       }
-      
+      // key は dateKey ベースで保持
+      // label ではなく dateKey を使うことで 表示文言変更時でもコメント紐付けを維持する
       const key = days[currentEditDIdx].dateKey;                //dateKeyへ変更
+      
+      // textarea の value は文字列として取得される HTMLは解釈されず text として保持される
       const val = document.getElementById("modalInput").value;
 
       // commentStatus未生成時の安全初期化
@@ -1396,21 +1450,25 @@
       
       // commentStatus は Object 前提
       // 初回入力時・欠損時は上で {} 初期化済み
+      // commentStatus[key] に直接代入 Object.assign 等を使わず参照維持して最小更新に留める
       rawData[currentEditFIdx].commentStatus[key] = val; 
       
       hasChanges = true;
 
       // render() 全体再描画を避け、コメントアイコン部分のみ差分更新
+      // querySelector はコメントセルのみを対象
+      // data属性で index を完全一致検索しているため別セル誤更新を防止
       const td = document.querySelector(
         `[data-comment-fidx="${currentEditFIdx}"][data-comment-didx="${currentEditDIdx}"]`
       );
 
       if (td) {
-        const icon = val ? "💬" : "＋";
+        const icon = val ? COMMENT_UI.HAS_COMMENT : COMMENT_UI.EMPTY_COMMENT;
 
         // コメント有無のみ差分更新
-        // 全体render()を避けることで
-        // スクロール位置ジャンプを防止
+        // 全体render()を避けることでスクロール位置ジャンプを防止
+        // innerHTML 更新範囲は固定テンプレートのみ
+        // ユーザー入力値(val)は埋め込まないためHTML注入リスクなし
         td.innerHTML = `
         <span class="com-icon"
           onclick="openModal(${currentEditFIdx}, ${currentEditDIdx})">
@@ -1425,7 +1483,7 @@
      * モーダルウィンドウを閉じ、編集中インデックスをリセットします。
      */
     function closeModal() {
-      document.getElementById("commentModal").style.display = "none";
+      document.getElementById("commentModal").style.display = DISPLAY_STYLE.NONE;
       currentEditFIdx = -1; 
       currentEditDIdx = -1;
     }
@@ -1454,9 +1512,9 @@
       const isBottom = (scrollH - scrollT) <= (clientH + SCROLL_CONFIG.BOTTOM_THRESHOLD);
       
       if (canScroll && !isBottom) {
-        indicator.style.display = "block";
+        indicator.style.display = DISPLAY_STYLE.BLOCK;
       } else {
-        indicator.style.display = "none";
+        indicator.style.display = DISPLAY_STYLE.NONE;
       }
     }
 
@@ -1477,6 +1535,8 @@
       // 【重要】scrollHeightではなく、tableのoffsetHeight（純粋な表の高さ）を使います。
       // これにより、余白（margin-bottom等）に惑わされず「表の最後の行」でピタッと止まります。
       const tableHeight = table.offsetHeight;
+      // target は「表の最終行」が見切れない位置
+      // wrapper余白ではなく table実高さ基準で算出
       const target = Math.max(0, tableHeight - element.clientHeight);
       const distance = target - start;
 
@@ -1491,6 +1551,8 @@
       let startTime = null;
 
       // requestAnimationFrameを使って、指定時間かけてコマ送りアニメーションを行います。
+      // requestAnimationFrame はブラウザ描画タイミング同期
+      // setTimeout よりスクロールが滑らかになりやすい
       function animation(currentTime) {
         if (startTime === null) startTime = currentTime;
         const timeElapsed = currentTime - startTime;
@@ -1531,6 +1593,8 @@
      * iOS等のブラウザで、画面全体が引っ張られてリロード（バウンス）するのを防ぎます。
      * ただし、テーブルの中身やモーダル内はスクロールできるように許可します。
      */
+    // body全体の overscroll/bounce を抑止
+    // table-wrapper と modal-box 内のみ ネイティブスクロールを許可する
     document.addEventListener('touchmove', function(e) {
       if (e.touches.length > 1) return; // ピンチズーム等は許可
       if (!e.target.closest('.table-wrapper') && !e.target.closest('.modal-box')) { 
