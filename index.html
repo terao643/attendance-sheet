@@ -1370,6 +1370,7 @@
       const key = days[dIdx].dateKey;  // dateKeyへ変更
 
       // DOM検索コスト削減 モーダル表示時に毎回 getElementById を繰り返さない
+      // モーダル表示時に使用するDOM要素を取得
       const modalTitle = document.getElementById("modalTitle");
       const modalDesc = document.getElementById("modalDesc");
       const modalInput = document.getElementById("modalInput");
@@ -1404,6 +1405,7 @@
     
     function viewModal(name, dateLabel, text) {
       // DOM検索コスト削減 モーダル表示時に毎回 getElementById を繰り返さない
+      // モーダル表示時に使用するDOM要素を取得
       const modalTitle = document.getElementById("modalTitle");
       const modalDesc = document.getElementById("modalDesc");
       const modalInput = document.getElementById("modalInput");
